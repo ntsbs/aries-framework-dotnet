@@ -1,20 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Hyperledger.Aries.Agents;
 using Hyperledger.Aries.Configuration;
-using Hyperledger.Aries.Decorators.Attachments;
 using Hyperledger.Aries.Extensions;
 using Hyperledger.Aries.Features.DidExchange;
-using Hyperledger.Aries.Features.IssueCredential;
 using Hyperledger.Aries.Storage;
-using Hyperledger.Indy.CryptoApi;
 using Microsoft.Extensions.Options;
-using Multiformats.Base;
-using Newtonsoft.Json;
 
 namespace Hyperledger.Aries.Routing.Edge
 {
@@ -50,7 +44,7 @@ namespace Hyperledger.Aries.Routing.Edge
             this.agentoptions = agentOptions.Value;
         }
 
-        public async Task AddRouteAsync(IAgentContext agentContext, string routeDestination)
+        public virtual async Task AddRouteAsync(IAgentContext agentContext, string routeDestination)
         {
             var connection = await GetMediatorConnectionAsync(agentContext);
             if (connection != null)
@@ -60,7 +54,7 @@ namespace Hyperledger.Aries.Routing.Edge
             }
         }
 
-        public async Task CreateInboxAsync(IAgentContext agentContext, Dictionary<string, string> metadata = null)
+        public virtual async Task CreateInboxAsync(IAgentContext agentContext, Dictionary<string, string> metadata = null)
         {
             var provisioning = await provisioningService.GetProvisioningAsync(agentContext.Wallet);
             if (provisioning.GetTag(MediatorInboxIdTagName) != null)
@@ -91,7 +85,7 @@ namespace Hyperledger.Aries.Routing.Edge
             return connection;
         }
 
-        public async Task<AgentPublicConfiguration> DiscoverConfigurationAsync(string agentEndpoint)
+        public virtual async Task<AgentPublicConfiguration> DiscoverConfigurationAsync(string agentEndpoint)
         {
             var httpClient = httpClientFactory.CreateClient();
             var response = await httpClient.GetAsync($"{agentEndpoint}/.well-known/agent-configuration").ConfigureAwait(false);
@@ -100,7 +94,7 @@ namespace Hyperledger.Aries.Routing.Edge
             return responseJson.ToObject<AgentPublicConfiguration>();
         }
 
-        public async Task<(int, IEnumerable<InboxItemMessage>)> FetchInboxAsync(IAgentContext agentContext)
+        public virtual async Task<(int, IEnumerable<InboxItemMessage>)> FetchInboxAsync(IAgentContext agentContext)
         {
             var connection = await GetMediatorConnectionAsync(agentContext);
             if (connection == null)
@@ -120,6 +114,10 @@ namespace Hyperledger.Aries.Routing.Edge
                     await agentContext.Agent.ProcessAsync(agentContext, new PackedMessageContext(item.Data));
                     processedItems.Add(item.Id);
                 }
+                catch (AriesFrameworkException e) when (e.ErrorCode == ErrorCode.InvalidMessage) 
+                {
+                    processedItems.Add(item.Id);
+                }
                 catch (Exception)
                 {
                     unprocessedItem.Add(item);
@@ -134,7 +132,7 @@ namespace Hyperledger.Aries.Routing.Edge
             return (processedItems.Count, unprocessedItem);
         }
 
-        public async Task AddDeviceAsync(IAgentContext agentContext, AddDeviceInfoMessage message)
+        public virtual async Task AddDeviceAsync(IAgentContext agentContext, AddDeviceInfoMessage message)
         {
             var connection = await GetMediatorConnectionAsync(agentContext);
             if (connection != null)
